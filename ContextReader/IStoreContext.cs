@@ -7,6 +7,6 @@ namespace ContextReader
     public interface IStoreContext
     {
         void Store(IEnumerable<FieldContext> extractionContext);
-        IEnumerable<FieldContext> ReadAllFields(CancellationToken token);
+        IEnumerable<FieldContext> ReadAllFields();
     }
 }
