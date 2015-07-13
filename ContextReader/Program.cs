@@ -44,7 +44,8 @@ namespace ContextReader
                 Console.Write("\n1 for TXT \t2 for Json \n\n>>> ");
                 string option = Console.ReadLine();
                 switch (option)
-                {
+                { 
+
                     case "1":
                         {
                             var stronglyTypedDataTxt = JArray.Parse(jsonData);
@@ -84,14 +85,14 @@ namespace ContextReader
 
             try
             {
-                // Determine whether the directory exists. 
+                
                 if (Directory.Exists(path))
                 {
                     Console.WriteLine("That path exists already.");                 
                 }
                 else
                 {
-                    // Try to create the directory.
+                    
                     DirectoryInfo di = Directory.CreateDirectory(path);
                     
                     Console.WriteLine("The directory was created successfully at {0}.", Directory.GetCreationTime(path));
