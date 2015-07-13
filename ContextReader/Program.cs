@@ -7,8 +7,22 @@ using System.IO;
 using System.Net;
 using System.Text;
 using System.Windows;
+using System.Configuration;
+using NLog.Internal;
 
 
+// Task 1: explore ways of storing data to plain text files 
+// hint: maybe use json format (Newtonsoft.Json) and store each FieldsContext into a separate json serialized file?
+
+// Task 2: implement a plain text context storage - it should implement the IStoreContext interface 
+// and add specific implementations for Store and ReadAllFields method declarations
+
+// Task 3: to be discussed after Task 1 and Task 2 are done
+
+// General rule: focus on producing clear, easy to understand code and try to 
+// constantly apply what you have learned from Uncle Bob videos, internet, etc into achieving this
+
+// If you have questions, don't hesitate to ask :)
 
 
 namespace ContextReader
@@ -18,148 +32,120 @@ namespace ContextReader
         static void Main(string[] args)
         {
 
-            // Task 1: explore ways of storing data to plain text files 
-            // hint: maybe use json format (Newtonsoft.Json) and store each FieldsContext into a separate json serialized file?
+            SaveInDifferentFormat();
 
-            // Task 2: implement a plain text context storage - it should implement the IStoreContext interface 
-            // and add specific implementations for Store and ReadAllFields method declarations
-
-            // Task 3: to be discussed after Task 1 and Task 2 are done
-
-            // General rule: focus on producing clear, easy to understand code and try to 
-            // constantly apply what you have learned from Uncle Bob videos, internet, etc into achieving this
-
-            // If you have questions, don't hesitate to ask :)
-
-
-            string path = @"C:\Users\valentin.brad\Desktop\FieldsContext";
-            CreateFolder(path);
-
-            using (WebClient client = new WebClient())
-            {
-               
-                string jsonData = client.DownloadString(@"http://latis-pc/DataFactoryContextHost/context");
-
-
-                Console.Write("\n1 for TXT \t2 for Json \n\n>>> ");
-                string option = Console.ReadLine();
-                switch (option)
-                { 
-
-                    case "1":
-                        {
-                            var stronglyTypedDataTxt = JArray.Parse(jsonData);
-                            CreateTextFile(stronglyTypedDataTxt);
-
-                            break;
-                        }
-                    case "2":
-                        {
-
-                            var stronglyTypedDataJson = JsonConvert.DeserializeObject<ImmutableArray<FieldContext>>(jsonData);
-                            FieldContext fc = new FieldContext();
-                            for (int i = 0; i < stronglyTypedDataJson.Length; i++)
-                            {
-                                fc = stronglyTypedDataJson[i];
-                                CreateJsonFile(fc, i);
-                            }
-
-                            break;
-                        }
-                    default:
-                        {
-                            break;
-                        }
-                }
-
-            }
-
-
+            Console.ReadKey();
         }
 
-
-        static void CreateFolder(string path)
+        static void SaveInDifferentFormat()
         {
-
-           
-
             try
             {
-                
-                if (Directory.Exists(path))
+                CreateFolder();
+                using (WebClient client = new WebClient())
                 {
-                    Console.WriteLine("That path exists already.");                 
-                }
-                else
-                {
-                    
-                    DirectoryInfo di = Directory.CreateDirectory(path);
-                    
-                    Console.WriteLine("The directory was created successfully at {0}.", Directory.GetCreationTime(path));
-                }
+                    string jsonData = client.DownloadString(@"http://latis-pc/DataFactoryContextHost/context");
 
+                    Console.Write("\n1 for TXT \t2 for Json \n\n>>> ");
+                    string option = Console.ReadLine();
+                    switch (option)
+                    {
+                        case "1":
+                            {
+                                var stronglyTypedDataTxt = JArray.Parse(jsonData);
+                                CreateTextFile(stronglyTypedDataTxt);
+                                break;
+                            }
+                        case "2":
+                            {
+
+                                var stronglyTypedDataJson = JsonConvert.DeserializeObject<ImmutableArray<FieldContext>>(jsonData);
+                                FieldContext fc = new FieldContext();
+                                for (int i = 0; i < stronglyTypedDataJson.Length; i++)
+                                {
+                                    fc = stronglyTypedDataJson[i];
+                                    CreateJsonFile(fc, i);
+                                }
+                                break;
+                            }
+                        default:
+                            {
+                                break;
+                            }
+                    }
+
+                }
             }
-            catch (DirectoryNotFoundException) 
+            catch (DirectoryNotFoundException ex)
             {
-                throw ;
+                Console.WriteLine(ex.ToString());
             }
+            catch (FileNotFoundException ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
+            catch (JsonWriterException ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
+            catch (JsonSerializationException ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
+        }
+
+        static void CreateFolder()
+        {
+            string DirectoryPath = System.Configuration.ConfigurationManager.AppSettings["DirectoryPath"].ToString();
+
+                
+                if (!Directory.Exists(DirectoryPath))
+                {
+                    DirectoryInfo di = Directory.CreateDirectory(DirectoryPath);              
+                }
+               
 
         }
+           
+
         static void CreateTextFile(JArray stronglyTypedData)
         {
             
-            string path ="";
+            
 
             for (int i = 0; i < stronglyTypedData.Count; i++)
             {
-                try
-                {
-                    path = @"C:\Users\valentin.brad\Desktop\FieldsContext\FieldsContext" + i + ".txt";
-                    
-                    if (File.Exists(path))
+                string FilePath = System.Configuration.ConfigurationManager.AppSettings["FilePath"] + i + ".txt".ToString();
+
+                   if (File.Exists(FilePath))
                     {
-                        File.Delete(path);
-                        File.Create(path).Dispose();
+                        File.Delete(FilePath);
+                        File.Create(FilePath).Dispose();
                                              
                     }
-                    using (StreamWriter writer = new StreamWriter(path))
+                   using (StreamWriter writer = new StreamWriter(FilePath))
 
                     {
                         writer.Write(stronglyTypedData[i]);
                     }                 
-                }
-                catch (DirectoryNotFoundException ex)
-                {
-                    Console.WriteLine(ex.ToString());
-                }
-                catch (FileNotFoundException ex)
-                {
-                    Console.WriteLine(ex.ToString());
-                }
-
             }
+             
+
+            
         }
 
         static void CreateJsonFile(FieldContext fc,int i)
         {
 
-            string path = "";
+            string FilePath = System.Configuration.ConfigurationManager.AppSettings["FilePath"]+i + ".json".ToString();
 
-            
-                
-
-                try
-                {
-                    
-                    path = @"C:\Users\valentin.brad\Desktop\FieldsContext\FieldsContext" + i + ".json";
-
-                    if (File.Exists(path))
+            if (File.Exists(FilePath))
                     {
-                        File.Delete(path);
-                        File.Create(path).Dispose();
+                        File.Delete(FilePath);
+                        File.Create(FilePath).Dispose();
 
                     }
-                    using (StreamWriter writer = new StreamWriter(path))
+            using (StreamWriter writer = new StreamWriter(FilePath))
                     using (JsonWriter jw = new JsonTextWriter(writer))
                     {
                         jw.Formatting = Formatting.Indented;
@@ -168,16 +154,7 @@ namespace ContextReader
                         serializer.Serialize(jw, fc);
                     }
                     
-                }
-                catch (DirectoryNotFoundException ex)
-                {
-                    Console.WriteLine(ex.ToString());
-                }
-                catch (FileNotFoundException ex)
-                {
-                    Console.WriteLine(ex.ToString());
-                }
-
+                
 
 
 
