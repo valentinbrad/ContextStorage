@@ -9,6 +9,7 @@ using System.Text;
 using System.Windows;
 using System.Configuration;
 using NLog.Internal;
+using System.Collections.Generic;
 
 
 // Task 1: explore ways of storing data to plain text files 
@@ -31,9 +32,16 @@ namespace ContextReader
     {
         static void Main(string[] args)
         {
+            using (WebClient client = new WebClient())
+            {
+                string jsonData = client.DownloadString(@"http://latis-pc/DataFactoryContextHost/context");
 
-            SaveInDifferentFormat();
+                IEnumerable<FieldContext> extractionContext;
 
+                PlainTextContextStorage PTCS = new PlainTextContextStorage();
+                PTCS.Store(extractionContext);
+                //SaveInDifferentFormat();
+            }
             Console.ReadKey();
         }
 
