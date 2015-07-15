@@ -1,15 +1,11 @@
 ﻿using DataFactory.Learning.Context;
-using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Configuration;
 using System.IO;
 using System.Net;
-using System.Text;
-using System.Windows;
-using System.Configuration;
-using NLog.Internal;
-using System.Collections.Generic;
 
 
 // Task 1: explore ways of storing data to plain text files 
@@ -30,50 +26,49 @@ namespace ContextReader
 {
     class Program
     {
+        static readonly string storagePath = ConfigurationManager.AppSettings["DirectoryPath"];
         static void Main(string[] args)
-        {
-            using (WebClient client = new WebClient())
-            {
-                string jsonData = client.DownloadString(@"http://latis-pc/DataFactoryContextHost/context");
-
-                IEnumerable<FieldContext> extractionContext;
-
-                PlainTextContextStorage PTCS = new PlainTextContextStorage();
-                PTCS.Store(extractionContext);
-                //SaveInDifferentFormat();
-            }
-            Console.ReadKey();
-        }
-
-        static void SaveInDifferentFormat()
         {
             try
             {
-                CreateFolder();
                 using (WebClient client = new WebClient())
                 {
                     string jsonData = client.DownloadString(@"http://latis-pc/DataFactoryContextHost/context");
-
-                    Console.Write("\n1 for TXT \t2 for Json \n\n>>> ");
+                    var contexts = JsonConvert.DeserializeObject<ImmutableArray<FieldContext>>(jsonData);
+                    PlainTextContextStorage ContextStorage = new PlainTextContextStorage();
+                    Console.Write("\r\n1 for Store \t2 for ReadAllFields \t3 for ReadField \t4 for ReadSomeFields \t5 for SaveInDifferentFormat\r\n\r\n>>> ");
                     string option = Console.ReadLine();
                     switch (option)
                     {
                         case "1":
                             {
-                                var stronglyTypedDataTxt = JArray.Parse(jsonData);
-                                CreateTextFile(stronglyTypedDataTxt);
+                                ContextStorage.Store(contexts);
                                 break;
                             }
                         case "2":
                             {
-
-                                var stronglyTypedDataJson = JsonConvert.DeserializeObject<ImmutableArray<FieldContext>>(jsonData);
-                                FieldContext fc = new FieldContext();
-                                for (int i = 0; i < stronglyTypedDataJson.Length; i++)
-                                {
-                                    fc = stronglyTypedDataJson[i];
-                                    CreateJsonFile(fc, i);
-                                }
+                                IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
+                                listOfContexts = ContextStorage.ReadAllFields();
+                                break;
+                            }
+                        case "3":
+                            {
+                                string fileName = contexts[21].FieldInfo.FieldName + " " + contexts[21].Document.DocumentId;
+                                FieldContext fc = ContextStorage.ReadField(fileName);
+                                break;
+                            }
+                        case "4":
+                            {
+                                IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
+                                Console.Write("Give field context name: ");
+                                string fieldContextIdentifier = Console.ReadLine();
+                                listOfContexts = ContextStorage.ReadSomeFields(fieldContextIdentifier);
+                                break;
+                            }
+                        case "5":
+                            {
+                                TryCreateFolderIfNotExist();
+                                SaveInDifferentFormat(contexts);
                                 break;
                             }
                         default:
@@ -81,95 +76,158 @@ namespace ContextReader
                                 break;
                             }
                     }
-
                 }
             }
-            catch (DirectoryNotFoundException ex)
+            catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
             }
-            catch (FileNotFoundException ex)
+            Console.Write("\r\nPress any button to exit");
+            Console.ReadKey();
+        }
+
+        static void SaveInDifferentFormat(IEnumerable<FieldContext> contexts)
+        {
+            string option = ChooseFormatForFile();
+            SaveInChosenFormat(contexts, option);
+        }
+
+        private static string ChooseFormatForFile()
+        {
+            Console.Write("\r\n1 for TXT \t2 for Json \r\n\r\n>>> ");
+            string option = Console.ReadLine();
+            return option;
+        }
+
+        private static void SaveInChosenFormat(IEnumerable<FieldContext> contexts, string option)
+        {
+            switch (option)
             {
-                Console.WriteLine(ex.ToString());
-            }
-            catch (JsonWriterException ex)
-            {
-                Console.WriteLine(ex.ToString());
-            }
-            catch (JsonSerializationException ex)
-            {
-                Console.WriteLine(ex.ToString());
+                case "1":
+                    {
+                        SaveInTxtFormat(contexts);
+                        break;
+                    }
+                case "2":
+                    {
+                        SaveInJsonFormat(contexts);
+                        break;
+                    }
+                default:
+                    {
+                        break;
+                    }
             }
         }
 
-        static void CreateFolder()
+        private static void SaveInJsonFormat(IEnumerable<FieldContext> contexts)
         {
-            string DirectoryPath = System.Configuration.ConfigurationManager.AppSettings["DirectoryPath"].ToString();
+            foreach (var item in contexts)
+            {
+                WriteJsonFile(item);
+            }
+        }
 
-                
-                if (!Directory.Exists(DirectoryPath))
+        private static void SaveInTxtFormat(IEnumerable<FieldContext> contexts)
+        {
+            foreach (var item in contexts)
+            {
+                string FieldContext = PrintFieldId(item) + PrintFieldInfo(item) + PrintValues(item) + PrintDocument(item);
+                WriteTextFile(FieldContext, item.FieldInfo.FieldType, item.Document.DocumentId);
+            }
+        }
+
+        static string PrintFieldInfo(FieldContext fc)
+        {
+            return "\r\nFieldInfo" + "\r\n\tFieldType\r\n\t\t" + fc.FieldInfo.FieldType + "\r\n\tFieldName\r\n\t\t" + fc.FieldInfo.FieldName + "\r\n\tValueFieldType\r\n\t\t" + fc.FieldInfo.ValueFieldType + "\r\n";
+        }
+
+        static string PrintFieldId(FieldContext fc)
+        {
+            return "FieldId\r\n\t" + fc.FieldId + "\r\n";
+        }
+
+        static string PrintDocument(FieldContext fc)
+        {
+            string Document = "\r\nDocument\r\n" + "\tDocumentId\r\n\t\t" + fc.Document.DocumentId + "\r\n\tDocumentTypeId\r\n\t\t" + fc.Document.DocumentTypeId + "\r\n\tLanguage\r\n\t\t" + fc.Document.Language + "\r\n\tTextLength\r\n\t\t" + fc.Document.TextLength + "\r\n\tPageCount\r\n\t\t" + fc.Document.PageCount + "\r\n\tTimestamp\r\n\t\t" + fc.Document.Timestamp + "\r\n\tExtractedValues\r\n";
+
+            for (int i = 0; i < fc.Document.ExtractedValues.Length; i++)
+            {
+                Document = Document + "\t\t" + fc.Document.ExtractedValues[i] + "\r\n";
+            }
+            return Document;
+        }
+
+        static string PrintValues(FieldContext fc)
+        {
+            string a = "";
+            for (int i = 0; i < fc.Values.Length; i++)
+            {
+                a = "\r\nValues\r\n" + "\tPage\r\n\t\t" + fc.Values[i].Page + "\r\n\tIndex\r\n" + "\t\tIndexInDocument\r\n\t\t\t" + fc.Values[i].Index.IndexInDocument + "\r\n\t\tLength\r\n\t\t\t" + fc.Values[i].Index.Length + "\r\n\tValue\r\n\t\t" + fc.Values[i].Value + "\r\n\tSectionContext\r\n";
+                for (int j = 0; j < fc.Values[i].SectionContext.Length; j++)
                 {
-                    DirectoryInfo di = Directory.CreateDirectory(DirectoryPath);              
+                    a = a + "\t\tIndex\r\n\t\t\t" + "IndexInDocument\r\n\t\t\t\t" + fc.Values[i].SectionContext[j].Index.IndexInDocument + "\r\n\t\t\t" + "Length\r\n\t\t\t\t" + fc.Values[i].SectionContext[j].Index.Length + "\r\n\t\tWordGroups\r\n";
+
+                    for (int k = 0; k < fc.Values[i].SectionContext[j].WordGroups.Length; k++)
+                    {
+                        a = a + "\t\t\t" + "IndexInDocument\r\n\t\t\t\t" + fc.Values[i].SectionContext[j].WordGroups[k].IndexInDocument + "\r\n\t\t\t" + "Length\r\n\t\t\t\t" + fc.Values[i].SectionContext[j].WordGroups[k].Length + "\r\n";
+                    }
                 }
-               
-
-        }
-           
-
-        static void CreateTextFile(JArray stronglyTypedData)
-        {
-            
-            
-
-            for (int i = 0; i < stronglyTypedData.Count; i++)
-            {
-                string FilePath = System.Configuration.ConfigurationManager.AppSettings["FilePath"] + i + ".txt".ToString();
-
-                   if (File.Exists(FilePath))
-                    {
-                        File.Delete(FilePath);
-                        File.Create(FilePath).Dispose();
-                                             
-                    }
-                   using (StreamWriter writer = new StreamWriter(FilePath))
-
-                    {
-                        writer.Write(stronglyTypedData[i]);
-                    }                 
+                a = a + "\t\tTextContext\r\n" + "\t\t\tText\r\n\t\t\t\t" + fc.Values[i].TextContext.Text + "\r\n\t\t\tLanguage\r\n\t\t\t\t" + fc.Values[i].TextContext.Language + "\r\n\t\t\tIndex\r\n" + "\t\t\t\tIndexInDocument\r\n\t\t\t\t\t" + fc.Values[i].TextContext.Index.IndexInDocument + "\r\n\t\t\t\tLength\r\n\t\t\t\t\t" + fc.Values[i].TextContext.Index.Length + "\r\n\t\tPrefixWordGroups\r\n";
+                for (int j = 0; j < fc.Values[i].PrefixWordGroups.Length; j++)
+                {
+                    a = a + "\t\t\tIndexInDocument\r\n\t\t\t\t" + fc.Values[i].PrefixWordGroups[j].IndexInDocument + "\r\n\t\t\tLength\r\n\t\t\t\t" + fc.Values[i].PrefixWordGroups[j].Length + "\r\n";
+                }
+                a = a + "\t\tSuffixWordGroups\r\n";
+                for (int j = 0; j < fc.Values[i].SuffixWordGroups.Length; j++)
+                {
+                    a = a + "\t\t\tIndexInDocument\r\n\t\t\t\t" + fc.Values[i].SuffixWordGroups[j].IndexInDocument + "\r\n\t\t\tLength\r\n\t\t\t\t" + fc.Values[i].SuffixWordGroups[j].Length + "\r\n";
+                }
+                a = a + "\t\tOverlappingValues\r\n";
+                for (int j = 0; j < fc.Values[i].OverlappingValues.Length; j++)
+                {
+                    a = a + "\t\t\tReference\r\n" + "\t\t\t\tIndexInDocument\r\n\t\t\t\t\t" + fc.Values[i].OverlappingValues[j].Reference.IndexInDocument + "\r\n\t\t\t\tLength\r\n\t\t\t\t\t" + +fc.Values[i].OverlappingValues[j].Reference.Length + "\r\n\t\t\tFieldId\r\n\t\t\t\t" + fc.Values[i].OverlappingValues[j].FieldId + "\r\n";
+                }
             }
-             
-
-            
+            return a;
         }
 
-        static void CreateJsonFile(FieldContext fc,int i)
+        static void TryCreateFolderIfNotExist()
         {
-
-            string FilePath = System.Configuration.ConfigurationManager.AppSettings["FilePath"]+i + ".json".ToString();
-
-            if (File.Exists(FilePath))
-                    {
-                        File.Delete(FilePath);
-                        File.Create(FilePath).Dispose();
-
-                    }
-            using (StreamWriter writer = new StreamWriter(FilePath))
-                    using (JsonWriter jw = new JsonTextWriter(writer))
-                    {
-                        jw.Formatting = Formatting.Indented;
-
-                        JsonSerializer serializer = new JsonSerializer();
-                        serializer.Serialize(jw, fc);
-                    }
-                    
-                
-
-
-
-            
+            if (!Directory.Exists(storagePath))
+            {
+                Directory.CreateDirectory(storagePath);
+            }
         }
 
+        static void WriteTextFile(string FieldContext, string FieldName, string DocumentId)
+        {
+            string filePath = storagePath + FieldName + " " + DocumentId + ".json";
+            VerifyFileExistenceAndRemoveIfExists(filePath);
+            using (StreamWriter streamWriter = new StreamWriter(filePath))
+            {
+                streamWriter.Write(FieldContext);
+            }
+        }
 
+        static void WriteJsonFile(FieldContext fc)
+        {
+            string filePath = storagePath + fc.FieldInfo.FieldName.ToString() + " " + fc.Document.DocumentId.ToString() + ".json";
+            VerifyFileExistenceAndRemoveIfExists(filePath);
+            using (TextWriter textWriter = File.CreateText(filePath))
+            {
+                var context = JsonConvert.SerializeObject(fc, Formatting.Indented);
+                textWriter.Write(context);
+            }
+        }
+
+        private static void VerifyFileExistenceAndRemoveIfExists(string filePath)
+        {
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+        }
 
     }
 }
