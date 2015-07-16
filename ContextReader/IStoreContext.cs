@@ -8,6 +8,6 @@ namespace ContextReader
         void Store(IEnumerable<FieldContext> extractionContext);
         IEnumerable<FieldContext> ReadAllFields();
         FieldContext ReadField(string id);
-        IEnumerable<FieldContext> ReadSomeFields(string id);
+        IEnumerable<FieldContext> Query(string searchString);
     }
 }

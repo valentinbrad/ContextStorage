@@ -4,8 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Configuration;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 
 
 // Task 1: explore ways of storing data to plain text files 
@@ -29,6 +32,10 @@ namespace ContextReader
         static readonly string storagePath = ConfigurationManager.AppSettings["DirectoryPath"];
         static void Main(string[] args)
         {
+            TimeSpan begin = Process.GetCurrentProcess().TotalProcessorTime;
+
+
+
             try
             {
                 using (WebClient client = new WebClient())
@@ -53,8 +60,9 @@ namespace ContextReader
                             }
                         case "3":
                             {
-                                string fileName = contexts[21].FieldInfo.FieldName + " " + contexts[21].Document.DocumentId;
-                                FieldContext fc = ContextStorage.ReadField(fileName);
+                                string fileName = contexts[21].FieldInfo.FieldName.Replace(" ", "") + "-" + contexts[21].Document.DocumentId;
+                                string hashName = CalculateMD5Hash(fileName);
+                                FieldContext fc = ContextStorage.ReadField(hashName);
                                 break;
                             }
                         case "4":
@@ -62,7 +70,8 @@ namespace ContextReader
                                 IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
                                 Console.Write("Give field context name: ");
                                 string fieldContextIdentifier = Console.ReadLine();
-                                listOfContexts = ContextStorage.ReadSomeFields(fieldContextIdentifier);
+                                string hashName = CalculateMD5Hash(fieldContextIdentifier);
+                                listOfContexts = ContextStorage.Query(hashName);
                                 break;
                             }
                         case "5":
@@ -82,6 +91,9 @@ namespace ContextReader
             {
                 Console.WriteLine(ex.ToString());
             }
+            TimeSpan end = Process.GetCurrentProcess().TotalProcessorTime;
+            Console.WriteLine("Measured time: " + (end - begin).TotalMilliseconds + " ms.");
+
             Console.Write("\r\nPress any button to exit");
             Console.ReadKey();
         }
@@ -97,6 +109,19 @@ namespace ContextReader
             Console.Write("\r\n1 for TXT \t2 for Json \r\n\r\n>>> ");
             string option = Console.ReadLine();
             return option;
+        }
+
+        static string CalculateMD5Hash(string input)
+        {
+            MD5 md5 = System.Security.Cryptography.MD5.Create();
+            byte[] inputBytes = System.Text.Encoding.ASCII.GetBytes(input);
+            byte[] hash = md5.ComputeHash(inputBytes);
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < hash.Length; i++)
+            {
+                sb.Append(hash[i].ToString("X2"));
+            }
+            return sb.ToString();
         }
 
         private static void SaveInChosenFormat(IEnumerable<FieldContext> contexts, string option)
@@ -212,7 +237,8 @@ namespace ContextReader
 
         static void WriteJsonFile(FieldContext fc)
         {
-            string filePath = storagePath + fc.FieldInfo.FieldName.ToString() + " " + fc.Document.DocumentId.ToString() + ".json";
+            string hashName = CalculateMD5Hash(fc.FieldInfo.FieldName.Replace(" ", "") + "-" + fc.Document.DocumentId);
+            string filePath = storagePath + hashName + ".json";
             VerifyFileExistenceAndRemoveIfExists(filePath);
             using (TextWriter textWriter = File.CreateText(filePath))
             {
