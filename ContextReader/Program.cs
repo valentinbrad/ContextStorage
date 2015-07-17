@@ -62,7 +62,7 @@ namespace ContextReader
                                 }
                             case "3":
                                 {
-                                    string fileName = contexts[21].FieldInfo.FieldName.Replace(" ", "") + contexts[21].Document.DocumentId;
+                                    string fileName = contexts[21].FieldInfo.FieldName + contexts[21].Document.DocumentId;
                                     FieldContext fc = ContextStorage.ReadField(fileName);
                                     break;
                                 }

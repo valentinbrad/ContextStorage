@@ -1,6 +1,5 @@
 ﻿using DataFactory.Learning.Context;
 using Newtonsoft.Json;
-using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Configuration;
@@ -64,20 +63,13 @@ namespace ContextReader
 
         private MetadataContext InitializeMetadataContext(FieldContext item)
         {
-            MetadataContext mc = new MetadataContext();
-            string fieldId = item.FieldId.Replace(" ", "");
-            string fieldName = item.FieldInfo.FieldName.Replace(" ", "");
-            string text = item.Values[0].TextContext.Text.Replace(" ", "");
-            string documentId = item.Document.DocumentId.Replace(" ", "");
+            string fieldId = item.FieldId;
+            string fieldName = item.FieldInfo.FieldName;
+            string text = item.Values[0].TextContext.Text;
+            string documentId = item.Document.DocumentId;
             string documentIdentificationKey = fieldName + documentId;
             string hashName = CalculateMD5Hash(documentIdentificationKey);
-            mc.FieldId = fieldId;
-            mc.FieldName = fieldName;
-            mc.Text = text;
-            mc.DocumentId = documentId;
-            mc.DocumentIdentificationKey = documentIdentificationKey;
-            mc.HashName = hashName;
-            return mc;
+            return new MetadataContext(fieldId, fieldName, text, documentId, documentIdentificationKey, hashName);
         }
 
         private void TryCreateFolderIfNotExist()
@@ -90,7 +82,7 @@ namespace ContextReader
 
         private void WriteJsonFile(FieldContext fc)
         {
-            string hashName = CalculateMD5Hash(fc.FieldInfo.FieldName.Replace(" ", "") + fc.Document.DocumentId);
+            string hashName = CalculateMD5Hash(fc.FieldInfo.FieldName + fc.Document.DocumentId);
             string filePath = storagePath + hashName + ".json";
             VerifyFileExistenceAndRemoveIfExists(filePath);
             using (TextWriter textWriter = File.CreateText(filePath))
