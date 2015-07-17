@@ -85,6 +85,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="IStoreContext.cs" />
+    <Compile Include="MetadataContext.cs" />
     <Compile Include="PlainTextContextStorage.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

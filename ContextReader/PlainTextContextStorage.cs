@@ -1,6 +1,8 @@
 ﻿using DataFactory.Learning.Context;
 using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Configuration;
 using System.IO;
 using System.Linq;
@@ -12,7 +14,7 @@ namespace ContextReader
     class PlainTextContextStorage : IStoreContext
     {
         private readonly string storagePath = ConfigurationManager.AppSettings["DirectoryPath"];
-
+        private readonly string filePathForQuerry = ConfigurationManager.AppSettings["DirectoryPath"] + "A" + ".json";
         public void Store(IEnumerable<FieldContext> extractionContext)
         {
             TryCreateFolderIfNotExist();
@@ -31,24 +33,51 @@ namespace ContextReader
 
         public FieldContext ReadField(string id)
         {
-            string filePath = GetFilePathUsingFullNameOfFile(id);
+            string hashName = CalculateMD5Hash(id);
+            string filePath = GetFilePathUsingFullNameOfFile(hashName);
             return ReadJsonFile(filePath);
         }
 
-        public IEnumerable<FieldContext> Query(string id)
+        public IEnumerable<FieldContext> Query(string searchString)
         {
             List<FieldContext> listOfFieldContexts = new List<FieldContext>();
-            List<string> listOfFilePaths = GetListOfFilePathsUsingIncompleteNameOfFile(id);
-            AddEachFieldContextInList(listOfFieldContexts, listOfFilePaths);
+            ReadJsonFileReturnListOfFieldContextsThatContainSearchString(searchString, listOfFieldContexts);
             return listOfFieldContexts;
         }
 
         private void SaveContext(IEnumerable<FieldContext> extractionContext)
         {
-            foreach (var item in extractionContext)
+            MetadataContext metadataContext;
+            using (TextWriter textWriter = File.CreateText(storagePath + "A" + ".json"))
             {
-                WriteJsonFile(item);
+                textWriter.WriteLine("[");
+                foreach (var item in extractionContext)
+                {
+                    WriteJsonFile(item);
+                    metadataContext = InitializeMetadataContext(item);
+                    var context = JsonConvert.SerializeObject(metadataContext, Formatting.Indented);
+                    textWriter.WriteLine("{0}{1}", context, ",");
+                }
+                textWriter.Write("]");
             }
+        }
+
+        private MetadataContext InitializeMetadataContext(FieldContext item)
+        {
+            MetadataContext mc = new MetadataContext();
+            string fieldId = item.FieldId.Replace(" ", "");
+            string fieldName = item.FieldInfo.FieldName.Replace(" ", "");
+            string text = item.Values[0].TextContext.Text.Replace(" ", "");
+            string documentId = item.Document.DocumentId.Replace(" ", "");
+            string documentIdentificationKey = fieldName + documentId;
+            string hashName = CalculateMD5Hash(documentIdentificationKey);
+            mc.FieldId = fieldId;
+            mc.FieldName = fieldName;
+            mc.Text = text;
+            mc.DocumentId = documentId;
+            mc.DocumentIdentificationKey = documentIdentificationKey;
+            mc.HashName = hashName;
+            return mc;
         }
 
         private void TryCreateFolderIfNotExist()
@@ -61,7 +90,7 @@ namespace ContextReader
 
         private void WriteJsonFile(FieldContext fc)
         {
-            string hashName = CalculateMD5Hash(fc.FieldInfo.FieldName.Replace(" ", "") + "-" + fc.Document.DocumentId);
+            string hashName = CalculateMD5Hash(fc.FieldInfo.FieldName.Replace(" ", "") + fc.Document.DocumentId);
             string filePath = storagePath + hashName + ".json";
             VerifyFileExistenceAndRemoveIfExists(filePath);
             using (TextWriter textWriter = File.CreateText(filePath))
@@ -80,6 +109,45 @@ namespace ContextReader
             }
         }
 
+        private void ReadJsonFileReturnListOfFieldContextsThatContainSearchString(string searchString, List<FieldContext> listOfFieldContexts)
+        {
+            using (TextReader textReader = File.OpenText(filePathForQuerry))
+            {
+                string allText = textReader.ReadToEnd();
+                var contexts = JsonConvert.DeserializeObject<ImmutableArray<MetadataContext>>(allText);
+                foreach (var item in contexts)
+                {
+                    VerifyIfContextContainSearchString(searchString, listOfFieldContexts, item);
+                }
+            }
+        }
+
+        private void VerifyIfContextContainSearchString(string searchString, List<FieldContext> listOfFieldContexts, MetadataContext item)
+        {
+            if (item.FieldId.Contains(searchString))
+            {
+                AddEachFieldContextThatContainSearchStringInList(item, listOfFieldContexts);
+            }
+            else if (item.FieldName.Contains(searchString))
+            {
+                AddEachFieldContextThatContainSearchStringInList(item, listOfFieldContexts);
+            }
+            else if (item.DocumentId.Contains(searchString))
+            {
+                AddEachFieldContextThatContainSearchStringInList(item, listOfFieldContexts);
+            }
+            else if (item.Text.Contains(searchString))
+            {
+                AddEachFieldContextThatContainSearchStringInList(item, listOfFieldContexts);
+            }
+        }
+
+        private void AddEachFieldContextThatContainSearchStringInList(MetadataContext item, List<FieldContext> listOfFieldContexts)
+        {
+            string fileName = GetFilePathUsingFullNameOfFile(item.HashName);
+            listOfFieldContexts.Add(ReadJsonFile(fileName));
+        }
+
         private static void VerifyFileExistenceAndRemoveIfExists(string filePath)
         {
             if (File.Exists(filePath))
@@ -91,7 +159,7 @@ namespace ContextReader
         private string GetFilePathUsingFullNameOfFile(string id)
         {
             DirectoryInfo di = new DirectoryInfo(storagePath);
-            return (di.EnumerateFiles().Select(f => f.FullName).Where(f => f.Equals(id + ".json"))).FirstOrDefault();
+            return (di.EnumerateFiles().Select(f => f.FullName).Where(f => f.Contains(id + ".json"))).FirstOrDefault();
         }
 
         private List<string> GetListOfFilePathsUsingIncompleteNameOfFile(string id)

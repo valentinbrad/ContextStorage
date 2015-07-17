@@ -43,59 +43,64 @@ namespace ContextReader
                     string jsonData = client.DownloadString(@"http://latis-pc/DataFactoryContextHost/context");
                     var contexts = JsonConvert.DeserializeObject<ImmutableArray<FieldContext>>(jsonData);
                     PlainTextContextStorage ContextStorage = new PlainTextContextStorage();
-                    Console.Write("\r\n1 for Store \t2 for ReadAllFields \t3 for ReadField \t4 for ReadSomeFields \t5 for SaveInDifferentFormat\r\n\r\n>>> ");
+                    Console.Write("\r\n1 for Store \t2 for ReadAllFields \t3 for ReadField \t4 for Query \t5 for SaveInDifferentFormat \t0 for Exit\r\n\r\n>>> ");
                     string option = Console.ReadLine();
-                    switch (option)
+                    while (option != "0")
                     {
-                        case "1":
-                            {
-                                ContextStorage.Store(contexts);
-                                break;
-                            }
-                        case "2":
-                            {
-                                IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
-                                listOfContexts = ContextStorage.ReadAllFields();
-                                break;
-                            }
-                        case "3":
-                            {
-                                string fileName = contexts[21].FieldInfo.FieldName.Replace(" ", "") + "-" + contexts[21].Document.DocumentId;
-                                string hashName = CalculateMD5Hash(fileName);
-                                FieldContext fc = ContextStorage.ReadField(hashName);
-                                break;
-                            }
-                        case "4":
-                            {
-                                IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
-                                Console.Write("Give field context name: ");
-                                string fieldContextIdentifier = Console.ReadLine();
-                                string hashName = CalculateMD5Hash(fieldContextIdentifier);
-                                listOfContexts = ContextStorage.Query(hashName);
-                                break;
-                            }
-                        case "5":
-                            {
-                                TryCreateFolderIfNotExist();
-                                SaveInDifferentFormat(contexts);
-                                break;
-                            }
-                        default:
-                            {
-                                break;
-                            }
+                        switch (option)
+                        {
+                            case "1":
+                                {
+                                    ContextStorage.Store(contexts);
+                                    break;
+                                }
+                            case "2":
+                                {
+                                    IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
+                                    listOfContexts = ContextStorage.ReadAllFields();
+                                    break;
+                                }
+                            case "3":
+                                {
+                                    string fileName = contexts[21].FieldInfo.FieldName.Replace(" ", "") + contexts[21].Document.DocumentId;
+                                    FieldContext fc = ContextStorage.ReadField(fileName);
+                                    break;
+                                }
+                            case "4":
+                                {
+                                    IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
+                                    Console.Write("Give field context name: ");
+                                    string fieldContextIdentifier = Console.ReadLine();
+                                    listOfContexts = ContextStorage.Query(fieldContextIdentifier);
+                                    break;
+                                }
+                            case "5":
+                                {
+                                    TryCreateFolderIfNotExist();
+                                    SaveInDifferentFormat(contexts);
+                                    break;
+                                }
+                            case "0":
+                                {
+                                    break;
+                                }
+                            default:
+                                {
+                                    break;
+                                }
+                        }
+                        TimeSpan end = Process.GetCurrentProcess().TotalProcessorTime;
+                        Console.WriteLine("Measured time: " + (end - begin).TotalMilliseconds + " ms.");
+                        Console.Write("\r\n1 for Store \t2 for ReadAllFields \t3 for ReadField \t4 for Query \t5 for SaveInDifferentFormat \t5 for Exit\r\n\r\n>>> ");
+                        option = Console.ReadLine();
                     }
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.ToString());
+                Console.ReadKey();
             }
-            TimeSpan end = Process.GetCurrentProcess().TotalProcessorTime;
-            Console.WriteLine("Measured time: " + (end - begin).TotalMilliseconds + " ms.");
-
-            Console.Write("\r\nPress any button to exit");
-            Console.ReadKey();
         }
 
         static void SaveInDifferentFormat(IEnumerable<FieldContext> contexts)
