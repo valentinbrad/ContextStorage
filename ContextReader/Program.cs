@@ -43,7 +43,8 @@ namespace ContextReader
                     string jsonData = client.DownloadString(@"http://latis-pc/DataFactoryContextHost/context");
                     var contexts = JsonConvert.DeserializeObject<ImmutableArray<FieldContext>>(jsonData);
                     PlainTextContextStorage ContextStorage = new PlainTextContextStorage();
-                    Console.Write("\r\n1 for Store \t2 for ReadAllFields \t3 for ReadField \t4 for Query \t5 for SaveInDifferentFormat \t0 for Exit\r\n\r\n>>> ");
+                    MetadataContextStorage MetadataStorage = new MetadataContextStorage();
+                    Console.Write("\r\n1 for Store \r\n2 for ReadAllFields \t\r\n3 for ReadField \t\r\n4 for Query \r\n5 for SaveInDifferentFormat \r\n6 for Delete metadata \r\n6 for Update metadata \r\n0 for Exit\r\n\r\n>>> ");
                     string option = Console.ReadLine();
                     while (option != "0")
                     {
@@ -52,12 +53,15 @@ namespace ContextReader
                             case "1":
                                 {
                                     ContextStorage.Store(contexts);
+                                    MetadataStorage.StoreMetadata(contexts);
                                     break;
                                 }
                             case "2":
                                 {
                                     IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
                                     listOfContexts = ContextStorage.ReadAllFields();
+                                    IEnumerable<MetadataContext> listOfMetadataContexts = new List<MetadataContext>();
+                                    listOfMetadataContexts = MetadataStorage.ReadAllFields();
                                     break;
                                 }
                             case "3":
@@ -69,7 +73,7 @@ namespace ContextReader
                             case "4":
                                 {
                                     IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
-                                    Console.Write("Give field context name: ");
+                                    Console.Write("Give search string: ");
                                     string fieldContextIdentifier = Console.ReadLine();
                                     listOfContexts = ContextStorage.Query(fieldContextIdentifier);
                                     break;
@@ -78,6 +82,16 @@ namespace ContextReader
                                 {
                                     TryCreateFolderIfNotExist();
                                     SaveInDifferentFormat(contexts);
+                                    break;
+                                }
+                            case "6":
+                                {
+                                    MetadataStorage.DeleteMetadata();
+                                    break;
+                                }
+                            case "7":
+                                {
+                                    MetadataStorage.UpdateMetadata();
                                     break;
                                 }
                             case "0":
@@ -91,7 +105,7 @@ namespace ContextReader
                         }
                         TimeSpan end = Process.GetCurrentProcess().TotalProcessorTime;
                         Console.WriteLine("Measured time: " + (end - begin).TotalMilliseconds + " ms.");
-                        Console.Write("\r\n1 for Store \t2 for ReadAllFields \t3 for ReadField \t4 for Query \t5 for SaveInDifferentFormat \t5 for Exit\r\n\r\n>>> ");
+                        Console.Write("\r\n1 for Store \r\n2 for ReadAllFields \t\r\n3 for ReadField \t\r\n4 for Query \r\n5 for SaveInDifferentFormat \r\n6 for Delete metadata \r\n6 for Update metadata \r\n0 for Exit\r\n\r\n>>> ");
                         option = Console.ReadLine();
                     }
                 }

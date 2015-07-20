@@ -1,7 +1,6 @@
 ﻿using DataFactory.Learning.Context;
 using Newtonsoft.Json;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Configuration;
 using System.IO;
 using System.Linq;
@@ -12,11 +11,11 @@ namespace ContextReader
 {
     class PlainTextContextStorage : IStoreContext
     {
-        private readonly string storagePath = ConfigurationManager.AppSettings["DirectoryPath"];
-        private readonly string filePathForQuerry = ConfigurationManager.AppSettings["DirectoryPath"] + "A" + ".json";
+        private static readonly string storagePath = ConfigurationManager.AppSettings["DirectoryPath"];
+        MetadataContextStorage MetadataContext = new MetadataContextStorage();
         public void Store(IEnumerable<FieldContext> extractionContext)
         {
-            TryCreateFolderIfNotExist();
+            TryCreateFolderIfNotExist(storagePath);
             SaveContext(extractionContext);
         }
 
@@ -40,43 +39,27 @@ namespace ContextReader
         public IEnumerable<FieldContext> Query(string searchString)
         {
             List<FieldContext> listOfFieldContexts = new List<FieldContext>();
-            ReadJsonFileReturnListOfFieldContextsThatContainSearchString(searchString, listOfFieldContexts);
+            IEnumerable<string> listOfFieldContextsThatContainSearchString = MetadataContext.QueryOnMetadata(searchString);
+            foreach (var filePath in listOfFieldContextsThatContainSearchString)
+            {
+                listOfFieldContexts.Add(ReadJsonFile(filePath));
+            }
             return listOfFieldContexts;
         }
 
         private void SaveContext(IEnumerable<FieldContext> extractionContext)
         {
-            MetadataContext metadataContext;
-            using (TextWriter textWriter = File.CreateText(storagePath + "A" + ".json"))
+            foreach (var item in extractionContext)
             {
-                textWriter.WriteLine("[");
-                foreach (var item in extractionContext)
-                {
-                    WriteJsonFile(item);
-                    metadataContext = InitializeMetadataContext(item);
-                    var context = JsonConvert.SerializeObject(metadataContext, Formatting.Indented);
-                    textWriter.WriteLine("{0}{1}", context, ",");
-                }
-                textWriter.Write("]");
+                WriteJsonFile(item);
             }
         }
 
-        private MetadataContext InitializeMetadataContext(FieldContext item)
+        private void TryCreateFolderIfNotExist(string path)
         {
-            string fieldId = item.FieldId;
-            string fieldName = item.FieldInfo.FieldName;
-            string text = item.Values[0].TextContext.Text;
-            string documentId = item.Document.DocumentId;
-            string documentIdentificationKey = fieldName + documentId;
-            string hashName = CalculateMD5Hash(documentIdentificationKey);
-            return new MetadataContext(fieldId, fieldName, text, documentId, documentIdentificationKey, hashName);
-        }
-
-        private void TryCreateFolderIfNotExist()
-        {
-            if (!Directory.Exists(storagePath))
+            if (!Directory.Exists(path))
             {
-                Directory.CreateDirectory(storagePath);
+                Directory.CreateDirectory(path);
             }
         }
 
@@ -99,45 +82,6 @@ namespace ContextReader
                 string context = textReader.ReadToEnd();
                 return JsonConvert.DeserializeObject<FieldContext>(context);
             }
-        }
-
-        private void ReadJsonFileReturnListOfFieldContextsThatContainSearchString(string searchString, List<FieldContext> listOfFieldContexts)
-        {
-            using (TextReader textReader = File.OpenText(filePathForQuerry))
-            {
-                string allText = textReader.ReadToEnd();
-                var contexts = JsonConvert.DeserializeObject<ImmutableArray<MetadataContext>>(allText);
-                foreach (var item in contexts)
-                {
-                    VerifyIfContextContainSearchString(searchString, listOfFieldContexts, item);
-                }
-            }
-        }
-
-        private void VerifyIfContextContainSearchString(string searchString, List<FieldContext> listOfFieldContexts, MetadataContext item)
-        {
-            if (item.FieldId.Contains(searchString))
-            {
-                AddEachFieldContextThatContainSearchStringInList(item, listOfFieldContexts);
-            }
-            else if (item.FieldName.Contains(searchString))
-            {
-                AddEachFieldContextThatContainSearchStringInList(item, listOfFieldContexts);
-            }
-            else if (item.DocumentId.Contains(searchString))
-            {
-                AddEachFieldContextThatContainSearchStringInList(item, listOfFieldContexts);
-            }
-            else if (item.Text.Contains(searchString))
-            {
-                AddEachFieldContextThatContainSearchStringInList(item, listOfFieldContexts);
-            }
-        }
-
-        private void AddEachFieldContextThatContainSearchStringInList(MetadataContext item, List<FieldContext> listOfFieldContexts)
-        {
-            string fileName = GetFilePathUsingFullNameOfFile(item.HashName);
-            listOfFieldContexts.Add(ReadJsonFile(fileName));
         }
 
         private static void VerifyFileExistenceAndRemoveIfExists(string filePath)
