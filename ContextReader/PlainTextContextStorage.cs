@@ -9,14 +9,71 @@ using System.Text;
 
 namespace ContextReader
 {
-    class PlainTextContextStorage : IStoreContext
+    public class PlainTextContextStorage : IStoreContext
     {
         private static readonly string storagePath = ConfigurationManager.AppSettings["DirectoryPath"];
-        MetadataContextStorage MetadataContext = new MetadataContextStorage();
+        readonly IStoreMetadata MetadataStorage;
+        public PlainTextContextStorage(IStoreMetadata storeMetadata)
+        {
+            this.MetadataStorage = storeMetadata;
+        }
+
+        public void DeleteOneContextFromInside(FieldContext fc)
+        {
+            string hashName = CalculateMD5Hash(fc.FieldInfo.FieldName + fc.Document.DocumentId);
+            string hashPath = GetFilePathUsingFullNameOfFile(hashName);
+            if (hashPath != null)
+            {
+                File.Delete(hashPath);
+                MetadataStorage.DeleteOneMetadataFromInside(fc);
+            }
+        }
+
+        public void AddOneContextFromInside(FieldContext fc)
+        {
+            TryCreateFolderIfNotExist(storagePath);
+            WriteJsonFile(fc);
+            MetadataStorage.AddOneMetadataFromInside(fc);
+        }
+
+        public void DeleteContextFromOutside()
+        {
+            MetadataStorage.DeleteMetadata();
+        }
+
+        public void AddContextFromOutside()
+        {
+            MetadataStorage.AddMetadata();
+        }
+
+        public void UpdateContextFromOutside()
+        {
+            MetadataStorage.UpdateMetadata();
+        }
+
+        public void DeleteContextsFromInside(IEnumerable<FieldContext> extractionContext)
+        {
+            foreach (FieldContext fc in extractionContext)
+            {
+                DeleteOneContextFromInside(fc);
+            }
+        }
+
+        public void DeleteContextsWithProperty(string searchString)
+        {
+            IEnumerable<FieldContext> extractionContext = Query(searchString);
+            foreach (FieldContext fc in extractionContext)
+            {
+                DeleteOneContextFromInside(fc);
+            }
+        }
+
         public void Store(IEnumerable<FieldContext> extractionContext)
         {
             TryCreateFolderIfNotExist(storagePath);
             SaveContext(extractionContext);
+            MetadataStorage.StoreMetadata(extractionContext);
+
         }
 
         public IEnumerable<FieldContext> ReadAllFields()
@@ -39,7 +96,7 @@ namespace ContextReader
         public IEnumerable<FieldContext> Query(string searchString)
         {
             List<FieldContext> listOfFieldContexts = new List<FieldContext>();
-            IEnumerable<string> listOfFieldContextsThatContainSearchString = MetadataContext.QueryOnMetadata(searchString);
+            IEnumerable<string> listOfFieldContextsThatContainSearchString = this.MetadataStorage.QueryOnMetadata(searchString);
             foreach (var filePath in listOfFieldContextsThatContainSearchString)
             {
                 listOfFieldContexts.Add(ReadJsonFile(filePath));
@@ -84,12 +141,14 @@ namespace ContextReader
             }
         }
 
-        private static void VerifyFileExistenceAndRemoveIfExists(string filePath)
+        private static bool VerifyFileExistenceAndRemoveIfExists(string filePath)
         {
             if (File.Exists(filePath))
             {
                 File.Delete(filePath);
+                return true;
             }
+            return false;
         }
 
         private string GetFilePathUsingFullNameOfFile(string id)

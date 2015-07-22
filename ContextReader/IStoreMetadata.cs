@@ -9,8 +9,9 @@ namespace ContextReader
         IEnumerable<MetadataContext> ReadAllFields();
         void DeleteMetadata();
         void UpdateMetadata();
+        void AddMetadata();
+        void AddOneMetadataFromInside(FieldContext fc);
+        void DeleteOneMetadataFromInside(FieldContext fc);
         IEnumerable<string> QueryOnMetadata(string searchString);
-        //  MetadataContext ReadField(string id);
-        // IEnumerable<MetadataContext> Query(string searchString);
     }
 }

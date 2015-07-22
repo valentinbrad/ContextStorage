@@ -42,9 +42,8 @@ namespace ContextReader
                 {
                     string jsonData = client.DownloadString(@"http://latis-pc/DataFactoryContextHost/context");
                     var contexts = JsonConvert.DeserializeObject<ImmutableArray<FieldContext>>(jsonData);
-                    PlainTextContextStorage ContextStorage = new PlainTextContextStorage();
-                    MetadataContextStorage MetadataStorage = new MetadataContextStorage();
-                    Console.Write("\r\n1 for Store \r\n2 for ReadAllFields \t\r\n3 for ReadField \t\r\n4 for Query \r\n5 for SaveInDifferentFormat \r\n6 for Delete metadata \r\n6 for Update metadata \r\n0 for Exit\r\n\r\n>>> ");
+                    PlainTextContextStorage ContextStorage = new PlainTextContextStorage(new MetadataContextStorage());
+                    Console.Write("\r\n1 for Store \r\n2 for ReadAllFields \t\r\n3 for ReadField \t\r\n4 for Query \r\n5 for SaveInDifferentFormat \r\n6 for Delete context from outside \r\n7 for Update context from outside \r\n8 for Add context from outside \r\n9 for Delete context from inside \r\n10 for Add context from inside \r\n11 for Delete more context from inside \r\n12 for Delete contexts with a some property \r\n0 for Exit\r\n\r\n>>> ");
                     string option = Console.ReadLine();
                     while (option != "0")
                     {
@@ -53,15 +52,12 @@ namespace ContextReader
                             case "1":
                                 {
                                     ContextStorage.Store(contexts);
-                                    MetadataStorage.StoreMetadata(contexts);
                                     break;
                                 }
                             case "2":
                                 {
                                     IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
                                     listOfContexts = ContextStorage.ReadAllFields();
-                                    IEnumerable<MetadataContext> listOfMetadataContexts = new List<MetadataContext>();
-                                    listOfMetadataContexts = MetadataStorage.ReadAllFields();
                                     break;
                                 }
                             case "3":
@@ -74,8 +70,8 @@ namespace ContextReader
                                 {
                                     IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
                                     Console.Write("Give search string: ");
-                                    string fieldContextIdentifier = Console.ReadLine();
-                                    listOfContexts = ContextStorage.Query(fieldContextIdentifier);
+                                    string searchString = Console.ReadLine();
+                                    listOfContexts = ContextStorage.Query(searchString);
                                     break;
                                 }
                             case "5":
@@ -86,12 +82,43 @@ namespace ContextReader
                                 }
                             case "6":
                                 {
-                                    MetadataStorage.DeleteMetadata();
+                                    ContextStorage.DeleteContextFromOutside();
                                     break;
                                 }
                             case "7":
                                 {
-                                    MetadataStorage.UpdateMetadata();
+                                    ContextStorage.UpdateContextFromOutside();
+                                    break;
+                                }
+                            case "8":
+                                {
+                                    ContextStorage.AddContextFromOutside();
+                                    break;
+                                }
+                            case "9":
+                                {
+                                    ContextStorage.DeleteOneContextFromInside(contexts[1]);
+                                    break;
+                                }
+                            case "10":
+                                {
+                                    ContextStorage.AddOneContextFromInside(contexts[1]);
+                                    break;
+                                }
+                            case "11":
+                                {
+                                    List<FieldContext> contextsForDelete = new List<FieldContext>();
+                                    contextsForDelete.Add(contexts[1]);
+                                    contextsForDelete.Add(contexts[2]);
+                                    contextsForDelete.Add(contexts[3]);
+                                    ContextStorage.DeleteContextsFromInside(contextsForDelete);
+                                    break;
+                                }
+                            case "12":
+                                {
+                                    Console.Write("Give search string: ");
+                                    string searchString = Console.ReadLine();                          
+                                    ContextStorage.DeleteContextsWithProperty(searchString);
                                     break;
                                 }
                             case "0":
@@ -105,7 +132,7 @@ namespace ContextReader
                         }
                         TimeSpan end = Process.GetCurrentProcess().TotalProcessorTime;
                         Console.WriteLine("Measured time: " + (end - begin).TotalMilliseconds + " ms.");
-                        Console.Write("\r\n1 for Store \r\n2 for ReadAllFields \t\r\n3 for ReadField \t\r\n4 for Query \r\n5 for SaveInDifferentFormat \r\n6 for Delete metadata \r\n6 for Update metadata \r\n0 for Exit\r\n\r\n>>> ");
+                        Console.Write("\r\n1 for Store \r\n2 for ReadAllFields \t\r\n3 for ReadField \t\r\n4 for Query \r\n5 for SaveInDifferentFormat \r\n6 for Delete context from outside \r\n7 for Update context from outside \r\n8 for Add context from outside \r\n9 for Delete context from inside \r\n10 for Add context from inside \r\n11 for Delete more context from inside \r\n12 for Delete contexts with a some property \r\n0 for Exit\r\n\r\n>>> ");
                         option = Console.ReadLine();
                     }
                 }

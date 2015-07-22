@@ -11,12 +11,39 @@ using System.Text;
 
 namespace ContextReader
 {
-    class MetadataContextStorage : IStoreMetadata
+    public class MetadataContextStorage : IStoreMetadata
     {
         private static readonly string folderPathMetadata = ConfigurationManager.AppSettings["DirectoryPathForMetadata"];
         private static readonly string metadataFilePath = folderPathMetadata + "MetadataFieldContext" + ".json";
         private static readonly string storagePath = ConfigurationManager.AppSettings["DirectoryPath"];
-        private List<MetadataContext> listOfMedatada = new List<MetadataContext>();
+        private List<MetadataContext> listOfMetadata = new List<MetadataContext>();
+
+        public void UpdateMetadata()
+        {
+            List<string> pathOfAllContexts = GetAllContextsFilePath();
+            foreach (var filePath in pathOfAllContexts)
+            {
+                DateTime creationTime = File.GetCreationTime(filePath);
+                DateTime writeTime = File.GetLastWriteTime(filePath);
+                MetadataContext metadataContext = ReadJsonFile(filePath);
+                VerifyIfAnyFieldContextWasModified(filePath, creationTime, writeTime, metadataContext);
+            }
+            WriteJsonFile(listOfMetadata);
+        }
+
+        public void DeleteMetadata()
+        {
+            IEnumerable<MetadataContext> allMetadata = ReadAllFields();
+            if (DeleteMetadatThatAreNoLongerExist(allMetadata))
+            {
+                WriteJsonFile(listOfMetadata);
+            }
+        }
+
+        public IEnumerable<string> QueryOnMetadata(string searchString)
+        {
+            return ReturnListOfFieldContextsThatContainSearchString(searchString);
+        }
 
         public IEnumerable<MetadataContext> ReadAllFields()
         {
@@ -26,45 +53,70 @@ namespace ContextReader
 
         public void StoreMetadata(IEnumerable<FieldContext> extractionContext)
         {
-            TryCreateFolderIfNotExist(folderPathMetadata);
-            VerifyFileExistenceAndRemoveIfExists(metadataFilePath);
-            listOfMedatada = CreateListOfMetadata(extractionContext);
-            SaveMetadataContext(listOfMedatada);
+            listOfMetadata = CreateListOfMetadata(extractionContext);
+            SaveMetadataContext(listOfMetadata);
         }
 
-        public void UpdateMetadata()
+        public void AddMetadata()
         {
-            List<string> pathOfAllContexts = GetAllContextsFilePath();
+            List<string> pathOfAllContexts = GetAllContextsFileName();
+            List<string> listOfMetadataHashId = GetListOfMetadataHashId();
+            listOfMetadata = ReadAllFields().ToList();
+            VerifyAndAddIfAnyFieldContextWasAdded(pathOfAllContexts, listOfMetadataHashId);
+            WriteJsonFile(listOfMetadata);
+        }
+
+        public void AddOneMetadataFromInside(FieldContext fc)
+        {
+            MetadataContext mc = new MetadataContext(fc.FieldId, fc.FieldInfo.FieldName, fc.Values[0].TextContext.Text, fc.Document.DocumentId);
+            List<string> listOfMetadataHashId = GetListOfMetadataHashId();
+            string hash = CalculateMD5Hash(mc.Id);
+            if (!listOfMetadataHashId.Contains(hash + ".json"))
+            {
+                listOfMetadata = ReadAllFields().ToList();
+                listOfMetadata.Add(mc);
+                WriteJsonFile(listOfMetadata);
+            }
+        }
+
+        public void DeleteOneMetadataFromInside(FieldContext fc)
+        {
+            MetadataContext mc = new MetadataContext(fc.FieldId, fc.FieldInfo.FieldName, fc.Values[0].TextContext.Text, fc.Document.DocumentId);
+            listOfMetadata = ReadAllFields().ToList();
+            var metadataContext = listOfMetadata.First(l => l.Id.Equals(mc.Id));
+            listOfMetadata.Remove(metadataContext);
+            WriteJsonFile(listOfMetadata);
+        }
+
+        private void VerifyAndAddIfAnyFieldContextWasAdded(List<string> pathOfAllContexts, List<string> listOfMetadataHashId)
+        {
             foreach (var filePath in pathOfAllContexts)
             {
-                DateTime creationTime = File.GetCreationTime(filePath);
-                DateTime writeTime = File.GetLastWriteTime(filePath);
-                VerifyIfAnyFieldContextWasModified(filePath, creationTime, writeTime);
+                if (!listOfMetadataHashId.Contains(filePath))
+                {
+                    MetadataContext mc = ReadJsonFile(storagePath + filePath);
+                    listOfMetadata.Add(mc);
+                }
             }
-            VerifyFileExistenceAndRemoveIfExists(metadataFilePath);
-            WriteJsonFile(listOfMedatada);
         }
 
-        public void DeleteMetadata()
+        private List<string> GetListOfMetadataHashId()
         {
-            IEnumerable<MetadataContext> allMetadata = ReadAllFields();
-            if (DeleteMetadatThatAreNoLongerExist(allMetadata))
+            listOfMetadata = ReadAllFields().ToList();
+            List<string> listOfMetadataHashId = new List<string>();
+            foreach (MetadataContext mc in listOfMetadata)
             {
-                VerifyFileExistenceAndRemoveIfExists(metadataFilePath);
-                WriteJsonFile(listOfMedatada);
+                string hash = CalculateMD5Hash(mc.Id);
+                listOfMetadataHashId.Add(hash + ".json");
             }
-        }
-
-        public IEnumerable<string> QueryOnMetadata(string searchString)
-        {
-            return ReturnListOfFieldContextsThatContainSearchString(searchString);
+            return listOfMetadataHashId;
         }
 
         private ImmutableArray<MetadataContext> ReadMetadataJsonFile(string filePath)
         {
             using (TextReader textReader = File.OpenText(filePath))
             {
-                string context = textReader.ReadToEnd();
+                string context = textReader.ReadToEnd().TrimEnd();
                 return JsonConvert.DeserializeObject<ImmutableArray<MetadataContext>>(context);
             }
         }
@@ -89,13 +141,15 @@ namespace ContextReader
             foreach (var item in extractionContext)
             {
                 MetadataContext mc = new MetadataContext(item.FieldId, item.FieldInfo.FieldName, item.Values[0].TextContext.Text, item.Document.DocumentId);
-                listOfMedatada.Add(mc);
+                listOfMetadata.Add(mc);
             }
-            return listOfMedatada;
+            return listOfMetadata;
         }
 
         private void WriteJsonFile(IEnumerable<MetadataContext> listOfMedatada)
         {
+            TryCreateFolderIfNotExist(folderPathMetadata);
+            VerifyFileExistenceAndRemoveIfExists(metadataFilePath);
             using (TextWriter textWriter = File.AppendText(metadataFilePath))
             {
                 var context = JsonConvert.SerializeObject(listOfMedatada, Formatting.Indented);
@@ -131,46 +185,53 @@ namespace ContextReader
             return di.EnumerateFiles().Select(f => f.FullName).ToList();
         }
 
+        private List<string> GetAllContextsFileName()
+        {
+            DirectoryInfo di = new DirectoryInfo(storagePath);
+            return di.EnumerateFiles().Select(f => f.Name).ToList();
+        }
+
         private string GetFilePathUsingFullNameOfFile(string id)
         {
             DirectoryInfo di = new DirectoryInfo(storagePath);
             return (di.EnumerateFiles().Select(f => f.FullName).Where(f => f.Contains(id + ".json"))).FirstOrDefault();
         }
 
-        private void VerifyIfAnyFieldContextWasModified(string filePath, DateTime creationTime, DateTime writeTime)
+        private void VerifyIfAnyFieldContextWasModified(string filePath, DateTime creationTime, DateTime writeTime, MetadataContext metadataContext)
         {
             if (creationTime < writeTime)
             {
-                MetadataContext metadataContext = ReadJsonFile(filePath);
                 AddModifiedMetadata(metadataContext);
-                AddUnmodifiedMetadata(metadataContext);
                 File.SetCreationTime(filePath, writeTime);
+            }
+            else
+            {
+                AddUnmodifiedMetadata(metadataContext);
             }
         }
 
         private void AddModifiedMetadata(MetadataContext metadataContext)
         {
-            listOfMedatada.Add(metadataContext);
+            listOfMetadata.Add(metadataContext);
         }
 
         private void AddUnmodifiedMetadata(MetadataContext metadataContext)
         {
-            List<MetadataContext> allMetadata = ReadAllFields().ToList();
-            listOfMedatada = allMetadata.Where(x => x.Id != metadataContext.Id).ToList();
+            listOfMetadata.Add(metadataContext);
         }
 
         private bool DeleteMetadatThatAreNoLongerExist(IEnumerable<MetadataContext> allMetadata)
         {
             bool sem = false;
-            listOfMedatada = allMetadata.ToList();
-            for (int i = 0; i < listOfMedatada.Count; i++)
+            listOfMetadata = allMetadata.ToList();
+            foreach (var item in listOfMetadata)
             {
-                string hash = CalculateMD5Hash(listOfMedatada[i].Id);
+                string hash = CalculateMD5Hash(item.Id);
                 if (GetFileIdentifier(hash) == null)
                 {
-                    listOfMedatada.RemoveAt(i);
+                    var metadataContext = listOfMetadata.First(l => l.Id.Contains(item.Id));
+                    listOfMetadata.Remove(metadataContext);
                     sem = true;
-                    i--;
                 }
             }
             return sem;
