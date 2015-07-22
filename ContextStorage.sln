@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
-VisualStudioVersion = 12.0.31101.0
+VisualStudioVersion = 12.0.21005.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ContextReader", "ContextReader\ContextReader.csproj", "{D8A14639-881B-4852-8522-C38183512DE9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Store", "Store\Store.csproj", "{F846886B-0CB2-4A71-9C7E-446295DF3B25}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{D8A14639-881B-4852-8522-C38183512DE9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D8A14639-881B-4852-8522-C38183512DE9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D8A14639-881B-4852-8522-C38183512DE9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F846886B-0CB2-4A71-9C7E-446295DF3B25}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F846886B-0CB2-4A71-9C7E-446295DF3B25}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F846886B-0CB2-4A71-9C7E-446295DF3B25}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F846886B-0CB2-4A71-9C7E-446295DF3B25}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

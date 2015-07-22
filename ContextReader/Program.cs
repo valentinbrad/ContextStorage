@@ -1,14 +1,12 @@
 ﻿using DataFactory.Learning.Context;
 using Newtonsoft.Json;
 using System;
+using Store;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Configuration;
 using System.Diagnostics;
-using System.IO;
 using System.Net;
-using System.Security.Cryptography;
-using System.Text;
 
 
 // Task 1: explore ways of storing data to plain text files 
@@ -29,21 +27,26 @@ namespace ContextReader
 {
     class Program
     {
-        static readonly string storagePath = ConfigurationManager.AppSettings["DirectoryPath"];
+        static readonly bool useElasticSearch = bool.Parse(ConfigurationManager.AppSettings["UseElastic"]);
+
         static void Main(string[] args)
         {
             TimeSpan begin = Process.GetCurrentProcess().TotalProcessorTime;
-
-
-
             try
             {
                 using (WebClient client = new WebClient())
                 {
                     string jsonData = client.DownloadString(@"http://latis-pc/DataFactoryContextHost/context");
                     var contexts = JsonConvert.DeserializeObject<ImmutableArray<FieldContext>>(jsonData);
-                    PlainTextContextStorage ContextStorage = new PlainTextContextStorage(new MetadataContextStorage());
-                    Console.Write("\r\n1 for Store \r\n2 for ReadAllFields \t\r\n3 for ReadField \t\r\n4 for Query \r\n5 for SaveInDifferentFormat \r\n6 for Delete context from outside \r\n7 for Update context from outside \r\n8 for Add context from outside \r\n9 for Delete context from inside \r\n10 for Add context from inside \r\n11 for Delete more context from inside \r\n12 for Delete contexts with a some property \r\n0 for Exit\r\n\r\n>>> ");
+                    //if (useElasticSearch)
+                    //{
+                    Store.PlainTextContextStorage ContextStorage = new Store.PlainTextContextStorage(new Store.MetadataContextStorage());
+                    //}
+                    //else
+                    //{
+                    //    PlainTextContextStorage ContextStorage = new PlainTextContextStorage(new ElasticMetadataStore());
+                    //}
+                    Console.Write("\r\n1 for Add contexts \r\n2 for Get all contexts \t\r\n3 for Get one context \t\r\n4 for Query \r\n5 for Delete context \r\n6 for Add context \r\n0 for Exit\r\n\r\n>>> ");
                     string option = Console.ReadLine();
                     while (option != "0")
                     {
@@ -51,19 +54,19 @@ namespace ContextReader
                         {
                             case "1":
                                 {
-                                    ContextStorage.Store(contexts);
+                                    ContextStorage.AddContexts(contexts);
                                     break;
                                 }
                             case "2":
                                 {
                                     IEnumerable<FieldContext> listOfContexts = new List<FieldContext>();
-                                    listOfContexts = ContextStorage.ReadAllFields();
+                                    listOfContexts = ContextStorage.FetchAll();
                                     break;
                                 }
                             case "3":
                                 {
                                     string fileName = contexts[21].FieldInfo.FieldName + contexts[21].Document.DocumentId;
-                                    FieldContext fc = ContextStorage.ReadField(fileName);
+                                    FieldContext fc = ContextStorage.Get(fileName);
                                     break;
                                 }
                             case "4":
@@ -76,49 +79,12 @@ namespace ContextReader
                                 }
                             case "5":
                                 {
-                                    TryCreateFolderIfNotExist();
-                                    SaveInDifferentFormat(contexts);
+                                    ContextStorage.Delete(contexts[1].FieldInfo.FieldName + contexts[1].Document.DocumentId);
                                     break;
                                 }
                             case "6":
                                 {
-                                    ContextStorage.DeleteContextFromOutside();
-                                    break;
-                                }
-                            case "7":
-                                {
-                                    ContextStorage.UpdateContextFromOutside();
-                                    break;
-                                }
-                            case "8":
-                                {
-                                    ContextStorage.AddContextFromOutside();
-                                    break;
-                                }
-                            case "9":
-                                {
-                                    ContextStorage.DeleteOneContextFromInside(contexts[1]);
-                                    break;
-                                }
-                            case "10":
-                                {
-                                    ContextStorage.AddOneContextFromInside(contexts[1]);
-                                    break;
-                                }
-                            case "11":
-                                {
-                                    List<FieldContext> contextsForDelete = new List<FieldContext>();
-                                    contextsForDelete.Add(contexts[1]);
-                                    contextsForDelete.Add(contexts[2]);
-                                    contextsForDelete.Add(contexts[3]);
-                                    ContextStorage.DeleteContextsFromInside(contextsForDelete);
-                                    break;
-                                }
-                            case "12":
-                                {
-                                    Console.Write("Give search string: ");
-                                    string searchString = Console.ReadLine();                          
-                                    ContextStorage.DeleteContextsWithProperty(searchString);
+                                    ContextStorage.AddContext(contexts[1]);
                                     break;
                                 }
                             case "0":
@@ -132,7 +98,7 @@ namespace ContextReader
                         }
                         TimeSpan end = Process.GetCurrentProcess().TotalProcessorTime;
                         Console.WriteLine("Measured time: " + (end - begin).TotalMilliseconds + " ms.");
-                        Console.Write("\r\n1 for Store \r\n2 for ReadAllFields \t\r\n3 for ReadField \t\r\n4 for Query \r\n5 for SaveInDifferentFormat \r\n6 for Delete context from outside \r\n7 for Update context from outside \r\n8 for Add context from outside \r\n9 for Delete context from inside \r\n10 for Add context from inside \r\n11 for Delete more context from inside \r\n12 for Delete contexts with a some property \r\n0 for Exit\r\n\r\n>>> ");
+                        Console.Write("\r\n1 for Add contexts \r\n2 for Get all contexts \t\r\n3 for Get one context \t\r\n4 for Query \r\n5 for Delete context \r\n6 for Add context \r\n0 for Exit\r\n\r\n>>> ");
                         option = Console.ReadLine();
                     }
                 }
@@ -143,163 +109,5 @@ namespace ContextReader
                 Console.ReadKey();
             }
         }
-
-        static void SaveInDifferentFormat(IEnumerable<FieldContext> contexts)
-        {
-            string option = ChooseFormatForFile();
-            SaveInChosenFormat(contexts, option);
-        }
-
-        private static string ChooseFormatForFile()
-        {
-            Console.Write("\r\n1 for TXT \t2 for Json \r\n\r\n>>> ");
-            string option = Console.ReadLine();
-            return option;
-        }
-
-        static string CalculateMD5Hash(string input)
-        {
-            MD5 md5 = System.Security.Cryptography.MD5.Create();
-            byte[] inputBytes = System.Text.Encoding.ASCII.GetBytes(input);
-            byte[] hash = md5.ComputeHash(inputBytes);
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < hash.Length; i++)
-            {
-                sb.Append(hash[i].ToString("X2"));
-            }
-            return sb.ToString();
-        }
-
-        private static void SaveInChosenFormat(IEnumerable<FieldContext> contexts, string option)
-        {
-            switch (option)
-            {
-                case "1":
-                    {
-                        SaveInTxtFormat(contexts);
-                        break;
-                    }
-                case "2":
-                    {
-                        SaveInJsonFormat(contexts);
-                        break;
-                    }
-                default:
-                    {
-                        break;
-                    }
-            }
-        }
-
-        private static void SaveInJsonFormat(IEnumerable<FieldContext> contexts)
-        {
-            foreach (var item in contexts)
-            {
-                WriteJsonFile(item);
-            }
-        }
-
-        private static void SaveInTxtFormat(IEnumerable<FieldContext> contexts)
-        {
-            foreach (var item in contexts)
-            {
-                string FieldContext = PrintFieldId(item) + PrintFieldInfo(item) + PrintValues(item) + PrintDocument(item);
-                WriteTextFile(FieldContext, item.FieldInfo.FieldType, item.Document.DocumentId);
-            }
-        }
-
-        static string PrintFieldInfo(FieldContext fc)
-        {
-            return "\r\nFieldInfo" + "\r\n\tFieldType\r\n\t\t" + fc.FieldInfo.FieldType + "\r\n\tFieldName\r\n\t\t" + fc.FieldInfo.FieldName + "\r\n\tValueFieldType\r\n\t\t" + fc.FieldInfo.ValueFieldType + "\r\n";
-        }
-
-        static string PrintFieldId(FieldContext fc)
-        {
-            return "FieldId\r\n\t" + fc.FieldId + "\r\n";
-        }
-
-        static string PrintDocument(FieldContext fc)
-        {
-            string Document = "\r\nDocument\r\n" + "\tDocumentId\r\n\t\t" + fc.Document.DocumentId + "\r\n\tDocumentTypeId\r\n\t\t" + fc.Document.DocumentTypeId + "\r\n\tLanguage\r\n\t\t" + fc.Document.Language + "\r\n\tTextLength\r\n\t\t" + fc.Document.TextLength + "\r\n\tPageCount\r\n\t\t" + fc.Document.PageCount + "\r\n\tTimestamp\r\n\t\t" + fc.Document.Timestamp + "\r\n\tExtractedValues\r\n";
-
-            for (int i = 0; i < fc.Document.ExtractedValues.Length; i++)
-            {
-                Document = Document + "\t\t" + fc.Document.ExtractedValues[i] + "\r\n";
-            }
-            return Document;
-        }
-
-        static string PrintValues(FieldContext fc)
-        {
-            string a = "";
-            for (int i = 0; i < fc.Values.Length; i++)
-            {
-                a = "\r\nValues\r\n" + "\tPage\r\n\t\t" + fc.Values[i].Page + "\r\n\tIndex\r\n" + "\t\tIndexInDocument\r\n\t\t\t" + fc.Values[i].Index.IndexInDocument + "\r\n\t\tLength\r\n\t\t\t" + fc.Values[i].Index.Length + "\r\n\tValue\r\n\t\t" + fc.Values[i].Value + "\r\n\tSectionContext\r\n";
-                for (int j = 0; j < fc.Values[i].SectionContext.Length; j++)
-                {
-                    a = a + "\t\tIndex\r\n\t\t\t" + "IndexInDocument\r\n\t\t\t\t" + fc.Values[i].SectionContext[j].Index.IndexInDocument + "\r\n\t\t\t" + "Length\r\n\t\t\t\t" + fc.Values[i].SectionContext[j].Index.Length + "\r\n\t\tWordGroups\r\n";
-
-                    for (int k = 0; k < fc.Values[i].SectionContext[j].WordGroups.Length; k++)
-                    {
-                        a = a + "\t\t\t" + "IndexInDocument\r\n\t\t\t\t" + fc.Values[i].SectionContext[j].WordGroups[k].IndexInDocument + "\r\n\t\t\t" + "Length\r\n\t\t\t\t" + fc.Values[i].SectionContext[j].WordGroups[k].Length + "\r\n";
-                    }
-                }
-                a = a + "\t\tTextContext\r\n" + "\t\t\tText\r\n\t\t\t\t" + fc.Values[i].TextContext.Text + "\r\n\t\t\tLanguage\r\n\t\t\t\t" + fc.Values[i].TextContext.Language + "\r\n\t\t\tIndex\r\n" + "\t\t\t\tIndexInDocument\r\n\t\t\t\t\t" + fc.Values[i].TextContext.Index.IndexInDocument + "\r\n\t\t\t\tLength\r\n\t\t\t\t\t" + fc.Values[i].TextContext.Index.Length + "\r\n\t\tPrefixWordGroups\r\n";
-                for (int j = 0; j < fc.Values[i].PrefixWordGroups.Length; j++)
-                {
-                    a = a + "\t\t\tIndexInDocument\r\n\t\t\t\t" + fc.Values[i].PrefixWordGroups[j].IndexInDocument + "\r\n\t\t\tLength\r\n\t\t\t\t" + fc.Values[i].PrefixWordGroups[j].Length + "\r\n";
-                }
-                a = a + "\t\tSuffixWordGroups\r\n";
-                for (int j = 0; j < fc.Values[i].SuffixWordGroups.Length; j++)
-                {
-                    a = a + "\t\t\tIndexInDocument\r\n\t\t\t\t" + fc.Values[i].SuffixWordGroups[j].IndexInDocument + "\r\n\t\t\tLength\r\n\t\t\t\t" + fc.Values[i].SuffixWordGroups[j].Length + "\r\n";
-                }
-                a = a + "\t\tOverlappingValues\r\n";
-                for (int j = 0; j < fc.Values[i].OverlappingValues.Length; j++)
-                {
-                    a = a + "\t\t\tReference\r\n" + "\t\t\t\tIndexInDocument\r\n\t\t\t\t\t" + fc.Values[i].OverlappingValues[j].Reference.IndexInDocument + "\r\n\t\t\t\tLength\r\n\t\t\t\t\t" + +fc.Values[i].OverlappingValues[j].Reference.Length + "\r\n\t\t\tFieldId\r\n\t\t\t\t" + fc.Values[i].OverlappingValues[j].FieldId + "\r\n";
-                }
-            }
-            return a;
-        }
-
-        static void TryCreateFolderIfNotExist()
-        {
-            if (!Directory.Exists(storagePath))
-            {
-                Directory.CreateDirectory(storagePath);
-            }
-        }
-
-        static void WriteTextFile(string FieldContext, string FieldName, string DocumentId)
-        {
-            string filePath = storagePath + FieldName + " " + DocumentId + ".json";
-            VerifyFileExistenceAndRemoveIfExists(filePath);
-            using (StreamWriter streamWriter = new StreamWriter(filePath))
-            {
-                streamWriter.Write(FieldContext);
-            }
-        }
-
-        static void WriteJsonFile(FieldContext fc)
-        {
-            string hashName = CalculateMD5Hash(fc.FieldInfo.FieldName.Replace(" ", "") + "-" + fc.Document.DocumentId);
-            string filePath = storagePath + hashName + ".json";
-            VerifyFileExistenceAndRemoveIfExists(filePath);
-            using (TextWriter textWriter = File.CreateText(filePath))
-            {
-                var context = JsonConvert.SerializeObject(fc, Formatting.Indented);
-                textWriter.Write(context);
-            }
-        }
-
-        private static void VerifyFileExistenceAndRemoveIfExists(string filePath)
-        {
-            if (File.Exists(filePath))
-            {
-                File.Delete(filePath);
-            }
-        }
-
     }
 }
